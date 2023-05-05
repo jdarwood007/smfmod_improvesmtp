@@ -1,0 +1,124 @@
+<?xml version="1.0"?>
+<!DOCTYPE modification SYSTEM "http://www.simplemachines.org/xml/modification">
+<modification xmlns="http://www.simplemachines.org/xml/modification" xmlns:smf="http://www.simplemachines.org/">
+	<id>SleePy:improvesmtp</id>
+	<version>1.0</version>
+
+	<file name="$sourcedir/ScheduledTasks.php">
+		<operation>
+			<search position="replace"><![CDATA[	// Now we know how many we're sending, let's send them.
+	$request = $smcFunc['db_query']('', '
+		SELECT id_mail, recipient, body, subject, headers, send_html, time_sent, private
+		FROM {db_prefix}mail_queue
+		ORDER BY priority ASC, id_mail ASC
+		LIMIT {int:limit}',
+		array(
+			'limit' => $number,
+		)
+	);
+]]></search>
+			<add><![CDATA[	// Now we know how many we're sending, let's send them.
+	$request = $smcFunc['db_query']('', '
+		SELECT id_mail, recipient, body, subject, headers, send_html, time_sent, private, last_try
+		FROM {db_prefix}mail_queue
+		ORDER BY
+			CASE WHEN last_try = 0 THEN 1 ELSE 2 END,
+			last_try ASC, priority ASC, id_mail ASC
+		LIMIT {int:limit}',
+		array(
+			'limit' => $number,
+		)
+	);
+]]></add>
+		</operation>
+		<operation>
+			<search position="replace"><![CDATA[		$emails[] = array(
+			'to' => $row['recipient'],
+			'body' => $row['body'],
+			'subject' => $row['subject'],
+			'headers' => $row['headers'],
+			'send_html' => $row['send_html'],
+			'time_sent' => $row['time_sent'],
+			'private' => $row['private'],
+		);
+]]></search>
+			<add><![CDATA[		$emails[] = array(
+			'to' => $row['recipient'],
+			'body' => $row['body'],
+			'subject' => $row['subject'],
+			'headers' => $row['headers'],
+			'send_html' => $row['send_html'],
+			'time_sent' => $row['time_sent'],
+			'private' => $row['private'],
+			'last_try' => $row['last_try'],
+		);
+]]></add>
+		</operation>
+		<operation>
+			<search position="replace"><![CDATA[	// Send each email, yea!
+	$failed_emails = array();
+	foreach ($emails as $email)
+]]></search>
+			<add><![CDATA[	// Send each email, yea!
+	$failed_emails = array();
+	$last_try_time = time();
+	$mail_max_age = ((!empty($modSettings['mail_max_age']) ? $modSettings['mail_max_age'] : 14) * 60 * 60 * 24)
+	foreach ($emails as $email)
+]]></add>
+		</operation>
+		<operation>
+			<search position="replace"><![CDATA[		// Hopefully it sent?
+		if (!$result)
+			$failed_emails[] = array($email['to'], $email['body'], $email['subject'], $email['headers'], $email['send_html'], $email['time_sent'], $email['private']);
+]]></search>
+			<add><![CDATA[		// Hopefully it sent?
+		if (!$result && $email['time_sent'] + $mail_max_age < $last_try_time)
+			$failed_emails[] = array($email['to'], $email['body'], $email['subject'], $email['headers'], $email['send_html'], $email['time_sent'], $email['private'], $last_try_time);
+		// Email is over the age limit, log it and do not try again.
+		else if (!$result && $email['time_sent'] + $mail_max_age >= $last_try_time)
+			log_error(sprintf($txt['mail_send_unable'], $email['to']));
+]]></add>
+		</operation>
+		<operation>
+			<search position="replace"><![CDATA[		// Add our email back to the queue, manually.
+		$smcFunc['db_insert']('insert',
+			'{db_prefix}mail_queue',
+			array('recipient' => 'string', 'body' => 'string', 'subject' => 'string', 'headers' => 'string', 'send_html' => 'string', 'time_sent' => 'string', 'private' => 'int'),
+			$failed_emails,
+			array('id_mail')
+		);
+]]></search>
+			<add><![CDATA[		// Add our email back to the queue, manually.
+		$smcFunc['db_insert']('insert',
+			'{db_prefix}mail_queue',
+			array('recipient' => 'string', 'body' => 'string', 'subject' => 'string', 'headers' => 'string', 'send_html' => 'string', 'time_sent' => 'string', 'private' => 'int', 'last_try' => 'int'),
+			$failed_emails,
+			array('id_mail')
+		);
+]]></add>
+		</operation>
+	</file>
+
+	<file name="$sourcedir/ManageMail.php">
+		<operation>
+			<search position="replace"><![CDATA[		'',
+
+		// SMTP stuff.
+]]></search>
+			<add><![CDATA[		array('int', 'mail_max_age'),
+		'',
+
+		// SMTP stuff.
+]]></add>
+		</operation>
+	</file>
+
+	<file name="$languagedir/Modifications.english.php">
+		<operation>
+			<search position="end"></search>
+			<add><![CDATA[
+$txt['mail_max_age'] = 'Max Age (in days) before email is removed from queue';]]></add>
+		</operation>
+	</file>
+
+</modification>

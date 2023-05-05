@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!DOCTYPE package-info SYSTEM "http://www.simplemachines.org/xml/package-info">
+<package-info xmlns="http://www.simplemachines.org/xml/package-info" xmlns:smf="http://www.simplemachines.org/">
+	<id>SleePy:improvesmtp</id>
+	<name>Improve SMTP</name>
+	<version>1.0</version>
+	<type>modification</type>
+
+	<install for="2.1.*">
+		<modification>install_smf21.xml</modification>
+		<database>dbchanges.php</database>
+		<redirect url="?action=admin;area=mailqueue;sa=settings" />
+	</install>
+
+	<uninstall for="2.1.*">
+		<modification reverse="true">install_smf21.xml</modification>
+	</uninstall>
+</package-info>
